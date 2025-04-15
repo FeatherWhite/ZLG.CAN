@@ -43,6 +43,31 @@ namespace ZLG.CAN
             }
         }
 
+        public TransmissionMode TransmissionMode
+        {
+            get { return config.TransmissionMode; }
+            set
+            {
+                config.TransmissionMode = value;
+            }
+        }
+
+        public CANFDAccelerate CANFDAccelerate
+        {
+            get { return config.CanFDPara.CANFDAccelerate; }
+            set
+            {
+                config.CanFDPara.CANFDAccelerate = value;
+            }
+        }
+        public Models.ProtocolType CanFDProtocolType
+        {
+            get { return config.CanFDPara.ProtocolType; }
+            set
+            {
+                config.CanFDPara.ProtocolType = value;
+            }
+        }
         //private uint deviceTypeIndex;
         public void SetConfig(ZLGConfig config)
         {
