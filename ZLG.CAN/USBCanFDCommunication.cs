@@ -11,93 +11,95 @@ namespace ZLG.CAN
 {
     public class USBCanFDCommunication
     {
-        ZLGOperation zlgOperation = new ZLGOperation();
+        private ZLGOperation zlgOperation = new ZLGOperation();
 
         public bool IsOpen { get; set; }
         public ErrorMessage Error { get; set; } = new ErrorMessage();
-        public CANFDStandard CANFDStandard { get; set; } = CANFDStandard.CANFDISO;
-        public CANFDAccelerate CANFDAccelerate { get; set; } = CANFDAccelerate.NO;
-        public USBCANFDABaudrate USBCANFDABaudrate1 { get; set; } = USBCANFDABaudrate._500kbps;
-        public USBCANFDABaudrate USBCANFDABaudrate2 { get; set; } = USBCANFDABaudrate._500kbps;
-        public USBCANFDDBaudrate USBCANFDDBaudrate1 { get; set; } = USBCANFDDBaudrate._2000kbps;
-        public USBCANFDDBaudrate USBCANFDDBaudrate2 { get; set; } = USBCANFDDBaudrate._2000kbps;
-        public FrameType FrameType { get; set; } = FrameType.Extended;
-        public void Open()
-        {
-            CanFDPara para1 = new CanFDPara()
-            {
-                Standard = CANFDStandard,
-                Filter = new Filter()
-                {
-                    FilterType = FilterType.Disable
-                },
-                ProtocolType = ProtocolType.CANFD,
-                CANFDAccelerate = CANFDAccelerate,
-                TREnable = true
-            };
+        public CANFDStandard[] CANFDStandard { get; set; } = [Models.CANFDStandard.CANFDISO, Models.CANFDStandard.CANFDISO];
+        public CANFDAccelerate[] CANFDAccelerate { get; set; } = [Models.CANFDAccelerate.NO, Models.CANFDAccelerate.NO];
+        public USBCANFDABaudrate[] USBCANFDABaudrate { get; set; } = [Models.USBCANFDABaudrate._500kbps, Models.USBCANFDABaudrate._500kbps];
+        public USBCANFDDBaudrate[] USBCANFDDBaudrate { get; set; } = [Models.USBCANFDDBaudrate._2000kbps, Models.USBCANFDDBaudrate._2000kbps];
+        public ProtocolType[] ProtocolType { get; set; } = [Models.ProtocolType.CAN, Models.ProtocolType.CAN];
+        public FrameType[] FrameType { get; set; } = [Models.FrameType.Standard, Models.FrameType.Standard];
+        public DeviceInfoIndex[] DeviceInfoIndex { get; set; } 
+            = [Models.DeviceInfoIndex.ZCAN_USBCANFD_200U, Models.DeviceInfoIndex.ZCAN_USBCANFD_200U];
+        private CanFDPara[] para;
+        private ZLGConfig[] config;
 
-            ZLGConfig config = new ZLGConfig(DeviceInfoIndex.ZCAN_USBCANFD_200U, 0,
-                USBCANFDABaudrate1, USBCANFDDBaudrate1, para1, FrameType);
-            zlgOperation.SetConfig(config);
+        public bool Open()
+        {
+            para =
+            [
+               new CanFDPara()
+               {
+                    Standard = CANFDStandard[0],
+                    Filter = new Filter()
+                    {
+                        FilterType = FilterType.Disable
+                    },
+                    ProtocolType = ProtocolType[0],
+                    CANFDAccelerate = CANFDAccelerate[0],
+                    TREnable = true
+               },
+               new CanFDPara()
+               {
+                    Standard = CANFDStandard[1],
+                    Filter = new Filter()
+                    {
+                        FilterType = FilterType.Disable
+                    },
+                    ProtocolType = ProtocolType[1],
+                    CANFDAccelerate = CANFDAccelerate[1],
+                    TREnable = true
+               },
+            ];
+            config = [
+                new ZLGConfig(DeviceInfoIndex[0], 0,
+                USBCANFDABaudrate[0], USBCANFDDBaudrate[0], para[0], FrameType[0]),
+                new ZLGConfig(DeviceInfoIndex[1], 1,
+                USBCANFDABaudrate[1], USBCANFDDBaudrate[1], para[1], FrameType[1])
+                ];
+
+            zlgOperation.SetConfig(config[0]);
             zlgOperation.Open(0);
             if (!zlgOperation.IsDeviceOpen)
             {
                 Error = zlgOperation.ErrorMessage;
                 IsOpen = false;
-                return;
             }
             zlgOperation.InitCAN();
             if (!zlgOperation.IsInitCAN)
             {
                 Error = zlgOperation.ErrorMessage;
                 IsOpen = false;
-                return;
             }
             zlgOperation.StartCAN();
             if (!zlgOperation.IsStartCAN)
             {
                 Error = zlgOperation.ErrorMessage;
                 IsOpen = false;
-                return;
             }
 
-
-            CanFDPara para2 = new CanFDPara()
-            {
-                Standard = CANFDStandard,
-                Filter = new Filter()
-                {
-                    FilterType = FilterType.Disable
-                },
-                ProtocolType = ProtocolType.CANFD,
-                CANFDAccelerate = CANFDAccelerate,
-                TREnable = true
-            };
-            config = new ZLGConfig(DeviceInfoIndex.ZCAN_USBCANFD_200U, 1,
-                USBCANFDABaudrate2, USBCANFDDBaudrate2, para2, FrameType);
-
-            zlgOperation.SetConfig(config);
+            zlgOperation.SetConfig(config[1]);
             if (!zlgOperation.IsDeviceOpen)
             {
                 Error = zlgOperation.ErrorMessage;
                 IsOpen = false;
-                return;
             }
             zlgOperation.InitCAN();
             if (!zlgOperation.IsInitCAN)
             {
                 Error = zlgOperation.ErrorMessage;
                 IsOpen = false;
-                return;
             }
             zlgOperation.StartCAN();
             if (!zlgOperation.IsStartCAN)
             {
                 Error = zlgOperation.ErrorMessage;
                 IsOpen = false;
-                return;
             }
             IsOpen = true;
+            return IsOpen;
         }
 
         public void Close()
@@ -107,17 +109,54 @@ namespace ZLG.CAN
 
         public bool Send(uint canId, uint channelIndex, string strData)
         {
+            zlgOperation.FrameType = config[channelIndex].FrameType;
+            zlgOperation.TransmissionMode = config[channelIndex].TransmissionMode;
+            zlgOperation.CANFDAccelerate = para[channelIndex].CANFDAccelerate;
+            zlgOperation.CanFDProtocolType = para[channelIndex].ProtocolType;
             return zlgOperation.Send(canId, channelIndex, strData);
         }
 
-        public ZCAN_ReceiveFD_Data Receive(uint channelIndex,uint receiveId)
+        public bool Send(uint canId, uint channelIndex, byte[] data)
         {
-            var dataArray = zlgOperation.Receive<ZCAN_ReceiveFD_Data[]>(channelIndex);
-            var res = dataArray.
-                Where(data => GetId(data.frame.can_id) == receiveId).First();
-            res.frame.can_id = GetId(res.frame.can_id);
-            return res;
+            zlgOperation.FrameType = config[channelIndex].FrameType;
+            zlgOperation.TransmissionMode = config[channelIndex].TransmissionMode;
+            zlgOperation.CANFDAccelerate = para[channelIndex].CANFDAccelerate;
+            zlgOperation.CanFDProtocolType = para[channelIndex].ProtocolType;
+            bool isSuccess = zlgOperation.Send(canId, channelIndex, data);
+            if (isSuccess)
+            {
+                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} " +
+                    $"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
+            }
+            else
+            {
+                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
+                    + $"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+            }
+            return isSuccess;
         }
+
+        public T Receive<T>(uint channelIndex)
+        {
+            return zlgOperation.Receive<T>(channelIndex);
+        }
+
+        public ZCAN_ReceiveFD_Data Receive(uint channelIndex, uint receiveId)
+        {
+            var array = zlgOperation.Receive<ZCAN_ReceiveFD_Data[]>(channelIndex);
+            ZCAN_ReceiveFD_Data ret = new ZCAN_ReceiveFD_Data();
+            if (array != null)
+            {
+                if (array.Length > 0)
+                {
+                    var query = array.
+                        Where(data => GetId(data.frame.can_id) == receiveId);
+                    ret = query.First();
+                }
+            }
+            return ret;
+        }
+
         private uint GetId(uint canid)
         {
             return canid & 0x1FFFFFFFU;
