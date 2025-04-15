@@ -86,12 +86,41 @@ namespace ZLG.CAN
         {
             zlgOperation.FrameType = para.frameType[channelIndex];
             bool isSuccess = zlgOperation.Send(canId, channelIndex, data);
+            if (isSuccess)
+            {
+                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} " +
+                    $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
+            }
+            else
+            {
+                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
+                    + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+            }
             return isSuccess;
         }
 
         public T Receive<T>(uint channelIndex)
         {
             return zlgOperation.Receive<T>(channelIndex);
+        }
+        public ZCAN_Receive_Data Receive(uint channelIndex, uint receiveId)
+        {
+            var array = zlgOperation.Receive<ZCAN_Receive_Data[]>(channelIndex);
+            ZCAN_Receive_Data ret = new ZCAN_Receive_Data();
+            if (array != null)
+            {
+                if (array.Length > 0)
+                {
+                    var query = array.
+                        Where(data => GetId(data.frame.can_id) == receiveId);
+                    ret = query.First();
+                }
+            }
+            return ret;
+        }
+        private uint GetId(uint canid)
+        {
+            return canid & 0x1FFFFFFFU;
         }
     }
 
