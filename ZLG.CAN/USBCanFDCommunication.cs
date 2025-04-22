@@ -21,13 +21,15 @@ namespace ZLG.CAN
         public USBCANFDDBaudrate[] USBCANFDDBaudrate { get; set; } = [Models.USBCANFDDBaudrate._2000kbps, Models.USBCANFDDBaudrate._2000kbps];
         public ProtocolType[] ProtocolType { get; set; } = [Models.ProtocolType.CAN, Models.ProtocolType.CAN];
         public FrameType[] FrameType { get; set; } = [Models.FrameType.Standard, Models.FrameType.Standard];
-        public DeviceInfoIndex[] DeviceInfoIndex { get; set; } 
+        public DeviceInfoIndex[] DeviceInfoIndex { get; set; }
             = [Models.DeviceInfoIndex.ZCAN_USBCANFD_200U, Models.DeviceInfoIndex.ZCAN_USBCANFD_200U];
         private CanFDPara[] para;
         private ZLGConfig[] config;
 
         public bool Open()
         {
+            IsOpen = true;
+
             para =
             [
                new CanFDPara()
@@ -98,7 +100,6 @@ namespace ZLG.CAN
                 Error = zlgOperation.ErrorMessage;
                 IsOpen = false;
             }
-            IsOpen = true;
             return IsOpen;
         }
 
@@ -141,7 +142,7 @@ namespace ZLG.CAN
             return zlgOperation.Receive<T>(channelIndex);
         }
 
-        public ZCAN_ReceiveFD_Data Receive(uint channelIndex, uint receiveId)
+        public ZCAN_ReceiveFD_Data ReceiveFD(uint channelIndex, uint receiveId)
         {
             var array = zlgOperation.Receive<ZCAN_ReceiveFD_Data[]>(channelIndex);
             ZCAN_ReceiveFD_Data ret = new ZCAN_ReceiveFD_Data();
@@ -152,6 +153,25 @@ namespace ZLG.CAN
                     var query = array.
                         Where(data => GetId(data.frame.can_id) == receiveId);
                     ret = query.First();
+                }
+            }
+            return ret;
+        }
+
+        public ZCAN_Receive_Data Receive(uint channelIndex, uint receiveId)
+        {
+            var array = zlgOperation.Receive<ZCAN_Receive_Data[]>(channelIndex);
+            ZCAN_Receive_Data ret = new ZCAN_Receive_Data();
+            if (array != null)
+            {
+                if (array.Length > 0)
+                {
+                    var query = array.
+                        Where(data => GetId(data.frame.can_id) == receiveId);
+                    if (query.Count() > 0)
+                    {
+                        ret = query.First();
+                    }
                 }
             }
             return ret;
