@@ -12,7 +12,7 @@ namespace ZLG.CAN
     public class USBCanFDCommunication
     {
         private ZLGOperation zlgOperation = new ZLGOperation();
-
+        public uint DeviceIndex { get; set; } = 0;
         public bool IsOpen { get; set; }
         public ErrorMessage Error { get; set; } = new ErrorMessage();
         public CANFDStandard[] CANFDStandard { get; set; } = [Models.CANFDStandard.CANFDISO, Models.CANFDStandard.CANFDISO];
@@ -63,7 +63,7 @@ namespace ZLG.CAN
                 ];
 
             zlgOperation.SetConfig(config[0]);
-            zlgOperation.Open(0);
+            zlgOperation.Open(DeviceIndex);
             if (!zlgOperation.IsDeviceOpen)
             {
                 Error = zlgOperation.ErrorMessage;
