@@ -79,7 +79,18 @@ namespace ZLG.CAN
         public bool Send(uint canId, uint channelIndex, string strData)
         { 
             zlgOperation.FrameType = para.frameType[channelIndex];
-            return zlgOperation.Send(canId, channelIndex, strData);
+            bool isSuccess = zlgOperation.Send(canId, channelIndex, strData);
+            if (isSuccess)
+            {
+                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} " +
+                    $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}");
+            }
+            else
+            {
+                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
+                    + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+            }
+            return isSuccess;
         }
 
         public bool Send(uint canId, uint channelIndex, byte[] data)
