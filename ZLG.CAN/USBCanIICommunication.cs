@@ -114,6 +114,27 @@ namespace ZLG.CAN
         {
             return zlgOperation.Receive<T>(channelIndex);
         }
+
+        //public T Receive<T>(uint channelIndex,uint receiveId)
+        //{
+        //    T ret = default;
+        //    if(typeof(T) == typeof(ZCAN_Receive_Data))
+        //    {
+        //        var array = zlgOperation.Receive<ZCAN_Receive_Data[]>(channelIndex);
+        //        if (array != null)
+        //        {
+        //            if (array.Length > 0)
+        //            {
+        //                var query = array.
+        //                    Where(data => GetId(data.frame.can_id) == receiveId);
+        //                var first = query.FirstOrDefault();
+        //                ret = (T)Convert.ChangeType(first, typeof(T));
+        //            }
+        //        }
+        //    }
+        //    return ret;
+        //}
+
         public ZCAN_Receive_Data Receive(uint channelIndex, uint receiveId)
         {
             var array = zlgOperation.Receive<ZCAN_Receive_Data[]>(channelIndex);
