@@ -1,10 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-	  <TargetFrameworks>netstandard2.1;net48;net472</TargetFrameworks>
+	  <TargetFrameworks>netstandard2.1;netstandard2.0;net48;net472</TargetFrameworks>
 	  <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <Platforms>AnyCPU;x64;x86</Platforms>
   </PropertyGroup>
 
 </Project>
