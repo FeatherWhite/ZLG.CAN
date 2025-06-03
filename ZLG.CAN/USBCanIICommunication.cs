@@ -22,6 +22,7 @@ namespace ZLG.CAN
             ZLGConfig config = new ZLGConfig(para.deviceInfoIndex, 0, para.kBaudrates[0], para.frameType[0]);
             zlgOperation.SetConfig(config);
             zlgOperation.Open(para.deviceIndex);
+            //LogInfo($"设备索引:{para.deviceIndex} 打开设备");
             if (!zlgOperation.IsDeviceOpen)
             {
                 Error = zlgOperation.ErrorMessage;
@@ -29,6 +30,7 @@ namespace ZLG.CAN
                 return;
             }
             zlgOperation.InitCAN();
+            //LogInfo($"设备索引:{para.deviceIndex} 通道索引:0 初始化CAN");
             if (!zlgOperation.IsInitCAN)
             {
                 Error = zlgOperation.ErrorMessage;
@@ -36,6 +38,7 @@ namespace ZLG.CAN
                 return;
             }
             zlgOperation.StartCAN();
+            //LogInfo($"设备索引:{para.deviceIndex} 通道索引:0 启动CAN");
             if (!zlgOperation.IsStartCAN)
             {
                 Error = zlgOperation.ErrorMessage;
@@ -52,6 +55,7 @@ namespace ZLG.CAN
                 return;
             }
             zlgOperation.InitCAN();
+            //LogInfo($"设备索引:{para.deviceIndex} 通道索引:1 初始化CAN");
             if (!zlgOperation.IsInitCAN)
             {
                 Error = zlgOperation.ErrorMessage;
@@ -59,6 +63,7 @@ namespace ZLG.CAN
                 return;
             }
             zlgOperation.StartCAN();
+            //LogInfo($"设备索引:{para.deviceIndex} 通道索引:1 启动CAN");
             if (!zlgOperation.IsStartCAN)
             {
                 Error = zlgOperation.ErrorMessage;
@@ -158,9 +163,10 @@ namespace ZLG.CAN
         //    return ret;
         //}
 
-        public ZCAN_Receive_Data Receive(uint channelIndex, uint receiveId)
+        public (bool isSuccess,  ZCAN_Receive_Data all)Receive(uint channelIndex, uint receiveId)
         {
             var array = zlgOperation.Receive<ZCAN_Receive_Data[]>(channelIndex);
+            bool isSuccess = false;
             ZCAN_Receive_Data ret = new ZCAN_Receive_Data();
             if (array != null)
             {
@@ -168,10 +174,14 @@ namespace ZLG.CAN
                 {
                     var query = array.
                         Where(data => GetId(data.frame.can_id) == receiveId);
-                    ret = query.First();
+                    if(query.Count() > 0)
+                    {
+                        ret = query.First();
+                        isSuccess = true;
+                    }
                 }
             }
-            return ret;
+            return (isSuccess, ret);
         }
         private uint GetId(uint canid)
         {
