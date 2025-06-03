@@ -640,7 +640,6 @@ namespace ZLG.CAN
             }
             pErrInfo = (ZCAN_CHANNEL_ERROR_INFO)Marshal.PtrToStructure(ptr, typeof(ZCAN_CHANNEL_ERROR_INFO));
             Marshal.FreeHGlobal(ptr);
-
             errorMessage.ErrorCode = $"错误码：{pErrInfo.error_code:D1}";
         }
 

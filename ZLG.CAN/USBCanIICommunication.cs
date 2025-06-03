@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using ZLG.CAN.Models;
 
@@ -10,7 +11,8 @@ namespace ZLG.CAN
     public class USBCanIICommunication
     {
         ZLGOperation zlgOperation = new ZLGOperation();
-
+        public delegate void LoggerInfoFunc(string message);
+        public LoggerInfoFunc LogInfo;
         public bool IsOpen { get; set; }
         public ErrorMessage Error { get; set; } = new ErrorMessage();
         public ZLGCANPara CanPara { get { return para; } }
@@ -82,13 +84,22 @@ namespace ZLG.CAN
             bool isSuccess = zlgOperation.Send(canId, channelIndex, strData);
             if (isSuccess)
             {
-                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} " +
-                    $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}");
+                Console.WriteLine($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}");
+                if (LogInfo != null)
+                {
+                    LogInfo($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}");
+                }      
             }
             else
             {
-                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
-                    + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+                Console.WriteLine($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+                Error = zlgOperation.ErrorMessage;
+                if(LogInfo != null)
+                {
+                    LogInfo($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+                    LogInfo($"错误码:{Error.ErrorCode}");
+                }
+
             }
             return isSuccess;
         }
@@ -101,11 +112,23 @@ namespace ZLG.CAN
             {
                 Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} " +
                     $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
+                if (LogInfo != null)
+                {
+                    LogInfo($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} " +
+                    $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
+                }
+                
             }
             else
             {
                 Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
                     + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+                if(LogInfo != null)
+                {
+                    LogInfo($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
+                    + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+                    LogInfo($"错误码:{Error.ErrorCode}");
+                }
             }
             return isSuccess;
         }
