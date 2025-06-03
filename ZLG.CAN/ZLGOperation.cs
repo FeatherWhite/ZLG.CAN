@@ -140,12 +140,20 @@ namespace ZLG.CAN
             isDeviceOpen = true;
         }
 
-        public void Close()
+        public bool Close()
         {
-            Method.ZCAN_CloseDevice(device_handle_);
-            isDeviceOpen = false;
-            isInitCAN = false;
-            isStartCAN = false;
+            uint ret = Method.ZCAN_CloseDevice(device_handle_);
+            if(ret == 1)
+            {
+                isDeviceOpen = false;
+                isInitCAN = false;
+                isStartCAN = false;
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
         public void InitCAN()

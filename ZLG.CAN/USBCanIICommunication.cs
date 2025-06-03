@@ -73,9 +73,9 @@ namespace ZLG.CAN
             IsOpen = true;
         }
 
-        public void Close()
+        public bool Close()
         {
-            zlgOperation.Close();
+            return zlgOperation.Close();
         }
 
         public void SetPara(ZLGCANPara para)
