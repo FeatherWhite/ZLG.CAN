@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -84,8 +85,8 @@ namespace ZLG.CAN
         }
 
         public bool Send(uint canId, uint channelIndex, string strData)
-        { 
-            zlgOperation.FrameType = para.frameType[channelIndex];
+        {
+            zlgOperation.FrameType = canId > 0x7FF ? FrameType.Extended : FrameType.Standard;
             bool isSuccess = zlgOperation.Send(canId, channelIndex, strData);
             if (isSuccess)
             {
@@ -97,11 +98,11 @@ namespace ZLG.CAN
             }
             else
             {
-                Console.WriteLine($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+                Console.WriteLine($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}失败");
                 Error = zlgOperation.ErrorMessage;
                 if(LogInfo != null)
                 {
-                    LogInfo($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+                    LogInfo($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}失败");
                     LogInfo($"错误码:{Error.ErrorCode}");
                 }
 
@@ -111,7 +112,7 @@ namespace ZLG.CAN
 
         public bool Send(uint canId, uint channelIndex, byte[] data)
         {
-            zlgOperation.FrameType = para.frameType[channelIndex];
+            zlgOperation.FrameType = canId > 0x7FF ? FrameType.Extended : FrameType.Standard;
             bool isSuccess = zlgOperation.Send(canId, channelIndex, data);
             if (isSuccess)
             {
@@ -127,11 +128,11 @@ namespace ZLG.CAN
             else
             {
                 Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
-                    + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+                    + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}失败");
                 if(LogInfo != null)
                 {
                     LogInfo($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
-                    + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
+                    + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}失败");
                     LogInfo($"错误码:{Error.ErrorCode}");
                 }
             }
@@ -163,7 +164,7 @@ namespace ZLG.CAN
         //    return ret;
         //}
 
-        public (bool isSuccess,  ZCAN_Receive_Data all)Receive(uint channelIndex, uint receiveId)
+        public (bool isSuccess, ZCAN_Receive_Data all)Receive(uint channelIndex, uint receiveId)
         {
             var array = zlgOperation.Receive<ZCAN_Receive_Data[]>(channelIndex);
             bool isSuccess = false;
@@ -177,8 +178,23 @@ namespace ZLG.CAN
                     if(query.Count() > 0)
                     {
                         ret = query.First();
+                        if(LogInfo != null)
+                        {
+                            LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+                            $"通道:{channelIndex}," +
+                            $"数据:{BitConverter.ToString(ret.frame.data)}");
+                        }
                         isSuccess = true;
                     }
+                }
+            }
+            if (!isSuccess)
+            {
+                if (LogInfo != null)
+                {
+                    LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+                    $"通道:{channelIndex}," +
+                    $"未接收到任何数据");
                 }
             }
             return (isSuccess, ret);
