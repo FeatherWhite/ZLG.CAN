@@ -199,6 +199,49 @@ namespace ZLG.CAN
             }
             return (isSuccess, ret);
         }
+
+        public List<(bool isSuccess, ZCAN_Receive_Data all)> Receive(uint channelIndex, uint[] receiveIds)
+        {
+            var array = zlgOperation.Receive<ZCAN_Receive_Data[]>(channelIndex);
+            List < (bool isSuccess, ZCAN_Receive_Data all) > rets = new List<(bool isSuccess, ZCAN_Receive_Data all)>();
+            foreach (var receiveId in receiveIds)
+            {
+                bool isSuccess = false;
+                ZCAN_Receive_Data ret = new ZCAN_Receive_Data();
+                if (array != null)
+                {
+                    if (array.Length > 0)
+                    {
+                        var query = array.
+                            Where(data => GetId(data.frame.can_id) == receiveId);
+                        if (query.Count() > 0)
+                        {
+                            ret = query.First();
+                            if (LogInfo != null)
+                            {
+                                LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+                                $"通道:{channelIndex}," +
+                                $"数据:{BitConverter.ToString(ret.frame.data)}");
+                            }
+                            isSuccess = true;
+                        }
+                    }
+                }
+                if (!isSuccess)
+                {
+                    if (LogInfo != null)
+                    {
+                        LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+                        $"通道:{channelIndex}," +
+                        $"未接收到任何数据");
+                    }
+                }
+                rets.Add((isSuccess,ret));
+            }
+            
+            return rets;
+        }
+
         private uint GetId(uint canid)
         {
             return canid & 0x1FFFFFFFU;
