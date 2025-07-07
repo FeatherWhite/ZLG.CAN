@@ -25,6 +25,7 @@ namespace ZLG.CAN
         public FrameType[] FrameType { get; set; } = [Models.FrameType.Standard, Models.FrameType.Standard];
         public DeviceInfoIndex[] DeviceInfoIndex { get; set; }
             = [Models.DeviceInfoIndex.ZCAN_USBCANFD_200U, Models.DeviceInfoIndex.ZCAN_USBCANFD_200U];
+        public bool[] TREnable { get; set; } = [true, true];
         private CanFDPara[] para;
         private ZLGConfig[] config;
 
@@ -43,7 +44,7 @@ namespace ZLG.CAN
                     },
                     ProtocolType = ProtocolType[0],
                     CANFDAccelerate = CANFDAccelerate[0],
-                    TREnable = true
+                    TREnable = TREnable[0]
                },
                new CanFDPara()
                {
@@ -54,7 +55,7 @@ namespace ZLG.CAN
                     },
                     ProtocolType = ProtocolType[1],
                     CANFDAccelerate = CANFDAccelerate[1],
-                    TREnable = true
+                    TREnable = TREnable[1]
                },
             ];
             config = [
@@ -69,38 +70,38 @@ namespace ZLG.CAN
             if (!zlgOperation.IsDeviceOpen)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
+                IsOpen &= false;
             }
             zlgOperation.InitCAN();
             if (!zlgOperation.IsInitCAN)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
+                IsOpen &= false;
             }
             zlgOperation.StartCAN();
             if (!zlgOperation.IsStartCAN)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
+                IsOpen &= false;
             }
 
             zlgOperation.SetConfig(config[1]);
             if (!zlgOperation.IsDeviceOpen)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
+                IsOpen &= false;
             }
             zlgOperation.InitCAN();
             if (!zlgOperation.IsInitCAN)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
+                IsOpen &= false;
             }
             zlgOperation.StartCAN();
             if (!zlgOperation.IsStartCAN)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
+                IsOpen &= false;
             }
             return IsOpen;
         }
@@ -268,6 +269,13 @@ namespace ZLG.CAN
                     if (query.Count() > 0)
                     {
                         ret = query.First();
+                        LogInfo?.Invoke($"{DeviceInfoIndex[channelIndex]} 接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+                            $"通道:{channelIndex},数据:{BitConverter.ToString(ret.frame.data)}");
+                    }
+                    else
+                    {
+                        LogInfo?.Invoke($"{DeviceInfoIndex[channelIndex]} 接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+                            $"通道:{channelIndex},未接收到任何数据");
                     }
                 }
             }
