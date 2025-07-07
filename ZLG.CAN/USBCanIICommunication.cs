@@ -18,7 +18,7 @@ namespace ZLG.CAN
         public ErrorMessage Error { get; set; } = new ErrorMessage();
         public ZLGCANPara CanPara { get { return para; } }
         private ZLGCANPara para = new ZLGCANPara();
-        public void Open()
+        public bool Open()
         {
             ZLGConfig config = new ZLGConfig(para.deviceInfoIndex, 0, para.kBaudrates[0], para.frameType[0]);
             zlgOperation.SetConfig(config);
@@ -27,24 +27,24 @@ namespace ZLG.CAN
             if (!zlgOperation.IsDeviceOpen)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
-                return;
+                IsOpen &= false;
+                return IsOpen;
             }
             zlgOperation.InitCAN();
             //LogInfo($"设备索引:{para.deviceIndex} 通道索引:0 初始化CAN");
             if (!zlgOperation.IsInitCAN)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
-                return;
+                IsOpen &= false;
+                return IsOpen;
             }
             zlgOperation.StartCAN();
             //LogInfo($"设备索引:{para.deviceIndex} 通道索引:0 启动CAN");
             if (!zlgOperation.IsStartCAN)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
-                return;
+                IsOpen &= false;
+                return IsOpen;
             }
 
             config = new ZLGConfig(para.deviceInfoIndex, 1, para.kBaudrates[1], para.frameType[1]);
@@ -52,26 +52,26 @@ namespace ZLG.CAN
             if (!zlgOperation.IsDeviceOpen)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
-                return;
+                IsOpen &= false;
+                return IsOpen;
             }
             zlgOperation.InitCAN();
             //LogInfo($"设备索引:{para.deviceIndex} 通道索引:1 初始化CAN");
             if (!zlgOperation.IsInitCAN)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
-                return;
+                IsOpen &= false;
+                return IsOpen;
             }
             zlgOperation.StartCAN();
             //LogInfo($"设备索引:{para.deviceIndex} 通道索引:1 启动CAN");
             if (!zlgOperation.IsStartCAN)
             {
                 Error = zlgOperation.ErrorMessage;
-                IsOpen = false;
-                return;
+                IsOpen &= false;
+                return IsOpen;
             }
-            IsOpen = true;
+            return IsOpen = true;
         }
 
         public bool Close()
