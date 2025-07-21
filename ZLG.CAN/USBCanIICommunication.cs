@@ -199,6 +199,50 @@ namespace ZLG.CAN
             }
             return (isSuccess, ret);
         }
+        /// <summary>
+        /// 接收同一CanId的多条报文
+        /// </summary>
+        /// <param name="channelIndex"></param>
+        /// <param name="receiveId"></param>
+        /// <returns></returns>
+        public (bool isSuccess, ZCAN_Receive_Data[] all) ReceiveMulti(uint channelIndex, uint receiveId)
+        {
+            var array = zlgOperation.Receive<ZCAN_Receive_Data[]>(channelIndex);
+            bool isSuccess = false;
+            ZCAN_Receive_Data[] rets = new ZCAN_Receive_Data[0];
+            if (array != null)
+            {
+                if (array.Length > 0)
+                {
+                    var query = array.
+                        Where(data => GetId(data.frame.can_id) == receiveId);
+                    if (query.Count() > 0)
+                    {
+                        rets = query.ToArray();
+                        foreach (var ret in rets)
+                        {
+                            if (LogInfo != null)
+                            {
+                                LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+                                $"通道:{channelIndex}," +
+                                $"数据:{BitConverter.ToString(ret.frame.data)}");
+                            }
+                        }
+                        isSuccess = true;
+                    }
+                }
+            }
+            if (!isSuccess)
+            {
+                if (LogInfo != null)
+                {
+                    LogInfo($"接收CanID: 0x{GetId(receiveId).ToString("X")}," +
+                    $"通道:{channelIndex}," +
+                    $"未接收到任何数据");
+                }
+            }
+            return (isSuccess, rets);
+        }
 
         public List<(bool isSuccess, ZCAN_Receive_Data all)> Receive(uint channelIndex, uint[] receiveIds)
         {
