@@ -476,6 +476,12 @@ namespace ZLG.CAN
             return true;
         }
 
+        public uint ClearBuffer(uint channelIndex)
+        {
+            var channelHandle = ChannelHandles[channelIndex];
+            return Method.ZCAN_ClearBuffer(channelHandle);
+        }
+
         public bool Send(uint canId, uint channelIndex, byte[] data)
         {
             uint id = canId;

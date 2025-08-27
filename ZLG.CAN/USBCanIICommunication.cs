@@ -164,6 +164,12 @@ namespace ZLG.CAN
         //    return ret;
         //}
 
+        public void ClearBuffer(uint channelIndex)
+        {
+            zlgOperation.ClearBuffer(channelIndex);
+            LogInfo?.Invoke($"清除通道:{channelIndex} 接收缓存");
+        }
+
         public (bool isSuccess, ZCAN_Receive_Data all)Receive(uint channelIndex, uint receiveId)
         {
             var array = zlgOperation.Receive<ZCAN_Receive_Data[]>(channelIndex);
