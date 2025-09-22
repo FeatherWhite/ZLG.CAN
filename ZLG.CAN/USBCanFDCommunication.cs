@@ -274,7 +274,7 @@ namespace ZLG.CAN
                         Where(data => GetId(data.frame.can_id) == receiveId);
                     if (query.Count() > 0)
                     {
-                        ret = query.First();
+                        ret = query.Last();
                         LogInfo?.Invoke($"{DeviceInfoIndex[channelIndex]} 接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
                             $"通道:{channelIndex},数据:{BitConverter.ToString(ret.frame.data)}");
                     }
