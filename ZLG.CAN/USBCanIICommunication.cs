@@ -183,7 +183,7 @@ namespace ZLG.CAN
                         Where(data => GetId(data.frame.can_id) == receiveId);
                     if(query.Count() > 0)
                     {
-                        ret = query.First();
+                        ret = query.Last();
                         if(LogInfo != null)
                         {
                             LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
@@ -266,7 +266,7 @@ namespace ZLG.CAN
                             Where(data => GetId(data.frame.can_id) == receiveId);
                         if (query.Count() > 0)
                         {
-                            ret = query.First();
+                            ret = query.Last();
                             if (LogInfo != null)
                             {
                                 LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
