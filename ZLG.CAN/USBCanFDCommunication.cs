@@ -289,6 +289,10 @@ namespace ZLG.CAN
             return ret;
         }
 
+        public uint GetReceiveNum(uint channelIndex, byte type)
+        {
+            return zlgOperation.GetReceiveNum(channelIndex, type);
+        }
         private uint GetId(uint canid)
         {
             return canid & 0x1FFFFFFFU;

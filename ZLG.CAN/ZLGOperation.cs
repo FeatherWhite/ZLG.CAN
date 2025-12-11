@@ -801,6 +801,12 @@ namespace ZLG.CAN
             return true;
         }
 
+        public uint GetReceiveNum(uint channelIndex, byte type)
+        {
+            var channelHandle = ChannelHandles[channelIndex];
+            return Method.ZCAN_GetReceiveNum(channelHandle, type);
+        }
+
         //设置开启合并接收
         private bool setDataMerge()
         {
