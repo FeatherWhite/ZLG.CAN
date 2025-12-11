@@ -108,6 +108,7 @@ namespace ZLG.CAN
 
         public void Close()
         {
+            IsOpen = false;
             zlgOperation.Close();
         }
 
