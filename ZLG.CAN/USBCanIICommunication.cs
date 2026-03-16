@@ -144,6 +144,11 @@ namespace ZLG.CAN
             return zlgOperation.Receive<T>(channelIndex);
         }
 
+        public uint GetReceiveNum(uint channelIndex)
+        {
+            return zlgOperation.GetReceiveNum(channelIndex, 0);
+        }
+
         //public T Receive<T>(uint channelIndex,uint receiveId)
         //{
         //    T ret = default;
