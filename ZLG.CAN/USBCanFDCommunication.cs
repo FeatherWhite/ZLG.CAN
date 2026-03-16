@@ -289,6 +289,35 @@ namespace ZLG.CAN
             return ret;
         }
 
+        public (bool isSuccess, ZCAN_Receive_Data all) Receive_V2(uint channelIndex, uint receiveId)
+        {
+            var array = zlgOperation.Receive<ZCAN_Receive_Data[]>(channelIndex);
+            bool isSuccess = false;
+            ZCAN_Receive_Data ret = new ZCAN_Receive_Data();
+            if (array != null)
+            {
+                if (array.Length > 0)
+                {
+                    var query = array.
+                        Where(data => GetId(data.frame.can_id) == receiveId);
+                    if (query.Count() > 0)
+                    {
+                        ret = query.Last();
+
+                        LogInfo?.Invoke($"{DeviceInfoIndex[channelIndex]} 接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+                            $"通道:{channelIndex},数据:{BitConverter.ToString(ret.frame.data)}");
+
+                        isSuccess = true;
+                    }
+                }
+            }
+            if (!isSuccess)
+            {
+                LogInfo?.Invoke($"{DeviceInfoIndex[channelIndex]} 接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+                    $"通道:{channelIndex},未接收到任何数据");
+            }
+            return (isSuccess, ret);
+        }
         public uint GetReceiveNum(uint channelIndex, byte type)
         {
             return zlgOperation.GetReceiveNum(channelIndex, type);
