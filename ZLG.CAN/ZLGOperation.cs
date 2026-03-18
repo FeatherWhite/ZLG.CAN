@@ -314,7 +314,7 @@ namespace ZLG.CAN
 
             if (!netDevice)
             {
-                if (usbCanfd && config.CanFDPara.TREnable)
+                if (usbCanfd)
                 {
                     if (!setResistanceEnable())
                     {
