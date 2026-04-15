@@ -120,7 +120,7 @@ namespace ZLG.CAN
                     $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
                 if (LogInfo != null)
                 {
-                    LogInfo($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} " +
+                    LogInfo(
                     $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
                 }
                 
@@ -131,8 +131,8 @@ namespace ZLG.CAN
                     + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}失败");
                 if(LogInfo != null)
                 {
-                    LogInfo($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
-                    + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}失败");
+                    LogInfo(
+                    $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}失败");
                     LogInfo($"错误码:{Error.ErrorCode}");
                 }
             }
