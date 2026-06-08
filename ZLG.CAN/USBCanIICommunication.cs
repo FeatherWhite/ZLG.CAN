@@ -297,6 +297,11 @@ namespace ZLG.CAN
             return rets;
         }
 
+        public int ReceiveInplace(uint channelIndex, ZCAN_Receive_Data[] data, int waitTime = 50)
+        {
+            return zlgOperation.ReceiveInplace(channelIndex, data, waitTime);
+        }
+
         private uint GetId(uint canid)
         {
             return canid & 0x1FFFFFFFU;

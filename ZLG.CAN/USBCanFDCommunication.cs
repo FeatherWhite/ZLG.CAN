@@ -161,9 +161,19 @@ namespace ZLG.CAN
             return isSuccess;
         }
 
-        public T Receive<T>(uint channelIndex)
+        public T Receive<T>(uint channelIndex,int waitTime = 50)
         {
-            return zlgOperation.Receive<T>(channelIndex);
+            return zlgOperation.Receive<T>(channelIndex, waitTime);
+        }
+
+        public int ReceiveInplace(uint channelIndex, ZCAN_ReceiveFD_Data[] data,  int waitTime = 50)
+        {
+            return zlgOperation.ReceiveInplace(channelIndex, data,waitTime);
+        }
+
+        public int ReceiveInplace(uint channelIndex, ZCAN_Receive_Data[] data, int waitTime = 50)
+        {
+            return zlgOperation.ReceiveInplace(channelIndex, data, waitTime);
         }
 
         public void Clear(uint channelIndex)
