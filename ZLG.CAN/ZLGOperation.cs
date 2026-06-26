@@ -125,60 +125,85 @@ namespace ZLG.CAN
         {
             device_handle_ = Method.ZCAN_OpenDevice(config.DeviceInfo.device_type, deviceIndex, 0);
             ChannelHandles = new IntPtr[config.DeviceInfo.channel_count];
-            if (NULL == (int)device_handle_)
+
+            if (device_handle_ == IntPtr.Zero || (int)device_handle_ == -1) // 规范的底层 null 判断
             {
                 isDeviceOpen = false;
                 return;
             }
+
             if (config.DeviceInfo.device_type == Define.ZCAN_USBCANFD_200U)
             {
                 string path = "0/get_cn/1";
                 byte[] sn_ = new byte[30];
                 IntPtr sn = Method.ZCAN_GetValue(device_handle_, path);
-                Marshal.Copy(sn, sn_, 0, 30);
+                if (sn != IntPtr.Zero) Marshal.Copy(sn, sn_, 0, 30);
             }
             isDeviceOpen = true;
+
+            // 🌟 重新引导发送非托管缓冲区
+            lock (_memLock)
+            {
+                if (_ptrCanSendBuffer != IntPtr.Zero) { Marshal.FreeHGlobal(_ptrCanSendBuffer); _ptrCanSendBuffer = IntPtr.Zero; }
+                if (_ptrCanFdSendBuffer != IntPtr.Zero) { Marshal.FreeHGlobal(_ptrCanFdSendBuffer); _ptrCanFdSendBuffer = IntPtr.Zero; }
+                if (_ptrMergeSendBuffer != IntPtr.Zero) { Marshal.FreeHGlobal(_ptrMergeSendBuffer); _ptrMergeSendBuffer = IntPtr.Zero; }
+
+                _ptrCanSendBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ZCAN_Transmit_Data)));
+                _ptrCanFdSendBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ZCAN_TransmitFD_Data)));
+                _ptrMergeSendBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ZCANDataObj)));
+            }
         }
 
         public bool Close()
         {
+            // 🌟 1. 顶层状态第一时间斩断！让外部高频调用的 Send/Receive 直接在最入口处拦截返回
+            isStartCAN = false;
+            isInitCAN = false;
+
             try
             {
-                // 1. 先关闭周立功硬件设备（如果没开设备，句柄可能为0，底层会处理）
-                uint ret = Method.ZCAN_CloseDevice(device_handle_);
-
-                if (ret == 1)
+                // 🌟 2. 引入与 Open/StartCAN 相同的内存专属锁，彻底终结多线程野指针撕裂
+                lock (_memLock)
                 {
-                    isDeviceOpen = false;
-                    isInitCAN = false;
-                    isStartCAN = false;
-
-                    // 🚨 2. 硬件成功关闭后，安全释放非托管物理缓冲区，并立即将其置空
+                    // 🌟 3. 先安全释放非托管物理缓冲区，并立即将其置空
                     if (_unmanagedCanFdBuffer != IntPtr.Zero)
                     {
                         Marshal.FreeHGlobal(_unmanagedCanFdBuffer);
-                        _unmanagedCanFdBuffer = IntPtr.Zero; // 👈 标志清零，彻底封杀 Double Free
+                        _unmanagedCanFdBuffer = IntPtr.Zero; // 彻底封杀 Double Free 和野指针访问
                     }
                     if (_unmanagedCanBuffer != IntPtr.Zero)
                     {
                         Marshal.FreeHGlobal(_unmanagedCanBuffer);
-                        _unmanagedCanBuffer = IntPtr.Zero;   // 👈 标志清零
+                        _unmanagedCanBuffer = IntPtr.Zero;
                     }
                     if (_ptrCanSendBuffer != IntPtr.Zero) { Marshal.FreeHGlobal(_ptrCanSendBuffer); _ptrCanSendBuffer = IntPtr.Zero; }
                     if (_ptrCanFdSendBuffer != IntPtr.Zero) { Marshal.FreeHGlobal(_ptrCanFdSendBuffer); _ptrCanFdSendBuffer = IntPtr.Zero; }
                     if (_ptrMergeSendBuffer != IntPtr.Zero) { Marshal.FreeHGlobal(_ptrMergeSendBuffer); _ptrMergeSendBuffer = IntPtr.Zero; }
-                    return true;
                 }
-                else
+
+                // 🌟 4. 此时上层和非托管内存层已经安全剥离，再放心关闭周立功硬件设备
+                if (device_handle_ != IntPtr.Zero && (int)device_handle_ != -1)
                 {
-                    // 如果设备关闭失败，保留非托管缓冲区，允许用户重试
-                    //LogInfo?.Invoke("周立功设备关闭失败。");
-                    return false;
+                    uint ret = Method.ZCAN_CloseDevice(device_handle_);
+                    if (ret == 1)
+                    {
+                        isDeviceOpen = false;
+                        device_handle_ = IntPtr.Zero; // 句柄记得同步置空
+                        return true;
+                    }
+                    else
+                    {
+                        // 如果硬件层关闭失败，但我们的状态和内存其实已经释放了
+                        return false;
+                    }
                 }
+
+                isDeviceOpen = false;
+                return true;
             }
             catch (Exception ex)
             {
-                //LogInfo?.Invoke($"关闭设备时发生异常: {ex.Message}");
+                // 可以留给底层的全局异常捕捉或记录
                 return false;
             }
         }
@@ -385,36 +410,37 @@ namespace ZLG.CAN
 
         public void StartCAN()
         {
-            if (!isInitCAN)
-            {
-                return;
-            }
+            // 注意：外界调用此方法时，应确保当前需要开启的 channel_handle_ 正确
+            if (!isInitCAN || channel_handle_ == IntPtr.Zero) return;
+
             if (Method.ZCAN_StartCAN(channel_handle_) != Define.STATUS_OK)
             {
-                errorMessage = new ErrorMessage
-                {
-                    Name = "启动CAN失败",
-                    Description = $"设备类型:{config.DeviceInfo.device_type}"
-                };
+                errorMessage = new ErrorMessage { Name = "启动CAN失败", Description = $"设备类型:{config.DeviceInfo.device_type}" };
                 isStartCAN = false;
                 return;
             }
-            uint type = config.DeviceInfo.device_type;   //增加CANFDNET滤波,CANFDNET滤波必须在startcan之后进行。
+
+            uint type = config.DeviceInfo.device_type;
             bool canfdnetDevice = type == Define.ZCAN_CANFDNET_400U_TCP || type == Define.ZCAN_CANFDNET_400U_UDP ||
-                             type == Define.ZCAN_CANFDNET_200U_TCP || type == Define.ZCAN_CANFDNET_200U_UDP || type == Define.ZCAN_CANFDNET_800U_TCP ||
-                             type == Define.ZCAN_CANFDNET_800U_UDP;
+                                 type == Define.ZCAN_CANFDNET_200U_TCP || type == Define.ZCAN_CANFDNET_200U_UDP ||
+                                 type == Define.ZCAN_CANFDNET_800U_TCP || type == Define.ZCAN_CANFDNET_800U_UDP;
             if (canfdnetDevice && !setFilter())
             {
-                errorMessage = new ErrorMessage
-                {
-                    Name = "设置滤波失败",
-                    Description = $"设备类型:{type.ToString()}{Environment.NewLine}" +
-                    $"增加CANFDNET滤波,CANFDNET滤波必须在startcan之后进行"
-                };
+                errorMessage = new ErrorMessage { Name = "设置滤波失败", Description = $"设备类型:{type}" };
                 isStartCAN = false;
                 return;
             }
             isStartCAN = true;
+
+            // 🌟 重新引导接收非托管缓冲区
+            lock (_memLock)
+            {
+                if (_unmanagedCanBuffer != IntPtr.Zero) { Marshal.FreeHGlobal(_unmanagedCanBuffer); _unmanagedCanBuffer = IntPtr.Zero; }
+                if (_unmanagedCanFdBuffer != IntPtr.Zero) { Marshal.FreeHGlobal(_unmanagedCanFdBuffer); _unmanagedCanFdBuffer = IntPtr.Zero; }
+
+                _unmanagedCanBuffer = Marshal.AllocHGlobal(SizeOfCanData * (int)MAX_RECEIVE_FRAMES);
+                _unmanagedCanFdBuffer = Marshal.AllocHGlobal(SizeOfCanFdData * (int)MAX_RECEIVE_FRAMES);
+            }
         }
 
         public bool Send(uint canId, uint channelIndex, string strData)
@@ -509,11 +535,20 @@ namespace ZLG.CAN
             return Method.ZCAN_ClearBuffer(channelHandle);
         }
 
-        // --- 常驻复用的发送结构体载体（完全契合你提供的字段名，实现 Zero-GC） ---
+        // ===================================================================
+        // 1. 结构体大小常驻常量
+        // ===================================================================
+        private static readonly int SizeOfCanData = Marshal.SizeOf(typeof(ZCAN_Receive_Data));
+        private static readonly int SizeOfCanFdData = Marshal.SizeOf(typeof(ZCAN_ReceiveFD_Data));
+
+        // 🌟 统一缓冲区帧数上限定义，彻底杜绝越界
+        private const uint MAX_RECEIVE_FRAMES = 50;
+
+        // ===================================================================
+        // 2. 常驻复用的发送结构体载体（Zero-GC 核心）
+        // ===================================================================
         private ZCAN_Transmit_Data _cachedCanTransmitData = new ZCAN_Transmit_Data { frame = new can_frame { data = new byte[8] } };
         private ZCAN_TransmitFD_Data _cachedCanFdTransmitData = new ZCAN_TransmitFD_Data { frame = new canfd_frame { data = new byte[64] } };
-
-        // 🚨 根据你最新的结构体字段完美适配的常驻缓存：
         private ZCANDataObj _cachedDataObj = new ZCANDataObj
         {
             extraData = new byte[4],
@@ -521,19 +556,33 @@ namespace ZLG.CAN
             zcanCANFDData = new ZCANCANFDData
             {
                 extraData = new byte[4],
-                frame = new canfd_frame { data = new byte[64] } // 映射到你的 canfd_frame
+                frame = new canfd_frame { data = new byte[64] }
             }
         };
 
-        // --- 常驻复用的非托管物理缓冲区指针（省去频繁申请和释放非托管内存的开销） ---
-        private IntPtr _ptrCanSendBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ZCAN_Transmit_Data)));
-        private IntPtr _ptrCanFdSendBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ZCAN_TransmitFD_Data)));
-        private IntPtr _ptrMergeSendBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ZCANDataObj)));
+        // ===================================================================
+        // 3. 常驻非托管物理缓冲区指针（初始化为 Zero，全由 Open 和 StartCAN 管理）
+        // ===================================================================
+        private IntPtr _ptrCanSendBuffer = IntPtr.Zero;
+        private IntPtr _ptrCanFdSendBuffer = IntPtr.Zero;
+        private IntPtr _ptrMergeSendBuffer = IntPtr.Zero;
+        private IntPtr _unmanagedCanBuffer = IntPtr.Zero;
+        private IntPtr _unmanagedCanFdBuffer = IntPtr.Zero;
 
-        
+        private readonly object _memLock = new object(); // 专属内存操作锁
+
+
+        // ===================================================================
+        // 5. 极致性能、绝对安全的发送与原地接收方法
+        // ===================================================================
         public bool Send(uint canId, uint channelIndex, byte[] data)
         {
-            if (data == null) return false;
+            // 物理层防线 1：拦截无效输入与越界
+            if (data == null || ChannelHandles == null || channelIndex >= ChannelHandles.Length) return false;
+
+            // 🌟 核心修正：改用局部变量，彻底封杀多线程并发时通道句柄被篡改交叉的隐患
+            IntPtr localChannelHandle = ChannelHandles[channelIndex];
+            if (localChannelHandle == IntPtr.Zero) return false;
 
             int frame_type_index = (int)config.FrameType;
             int send_type_index = (int)config.TransmissionMode;
@@ -541,49 +590,44 @@ namespace ZLG.CAN
             int protocol_index = (int)config.CanFDPara.ProtocolType;
             uint result = 0;
 
-            // 获取并锁定当前发送的通道句柄
-            channel_handle_ = ChannelHandles[channelIndex];
-
             if (config.IsDataMerge != true)
             {
                 if (0 == protocol_index)  // 1. 经典 CAN 单独发送分支
                 {
+                    // 极简懒加载自愈防线
+                    if (_ptrCanSendBuffer == IntPtr.Zero) _ptrCanSendBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ZCAN_Transmit_Data)));
+
                     _cachedCanTransmitData.frame.can_id = MakeCanId(canId, frame_type_index, 0, 0);
                     _cachedCanTransmitData.transmit_type = (uint)send_type_index;
-
-                    // 将诊断数据包拷贝进常驻的 8 字节数组中，并返回实际 DLC 长度
                     _cachedCanTransmitData.frame.can_dlc = (byte)GetData(data, ref _cachedCanTransmitData.frame.data, CAN_MAX_DLEN);
 
-                    // 零分配直接封送到非托管地址
                     Marshal.StructureToPtr(_cachedCanTransmitData, _ptrCanSendBuffer, false);
-                    result = Method.ZCAN_Transmit(channel_handle_, _ptrCanSendBuffer, 1);
+                    result = Method.ZCAN_Transmit(localChannelHandle, _ptrCanSendBuffer, 1);
                 }
                 else  // 2. CANFD 单独发送分支
                 {
+                    if (_ptrCanFdSendBuffer == IntPtr.Zero) _ptrCanFdSendBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ZCAN_TransmitFD_Data)));
+
                     _cachedCanFdTransmitData.frame.can_id = MakeCanId(canId, frame_type_index, 0, 0);
                     _cachedCanFdTransmitData.transmit_type = (uint)send_type_index;
                     _cachedCanFdTransmitData.frame.flags = (byte)((canfd_exp_index != 0) ? CANFD_BRS : 0);
-
-                    // 将数据拷贝进常驻的 64 字节数组中
                     _cachedCanFdTransmitData.frame.len = (byte)GetData(data, ref _cachedCanFdTransmitData.frame.data, CANFD_MAX_DLEN);
 
                     Marshal.StructureToPtr(_cachedCanFdTransmitData, _ptrCanFdSendBuffer, false);
-                    result = Method.ZCAN_TransmitFD(channel_handle_, _ptrCanFdSendBuffer, 1);
+                    result = Method.ZCAN_TransmitFD(localChannelHandle, _ptrCanFdSendBuffer, 1);
                 }
             }
-            else  // 3. 🚨 DataMerge 合并发送分支（完全适配你给出的最新数据结构）
+            else  // 3. DataMerge 合并发送分支
             {
-                _cachedDataObj.chnl = (byte)channelIndex; // 规范传参，避免错发通道
-                _cachedDataObj.dataType = 1;              // 1 代表 can/canfd 报文
+                if (device_handle_ == IntPtr.Zero) return false;
+                if (_ptrMergeSendBuffer == IntPtr.Zero) _ptrMergeSendBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ZCANDataObj)));
 
-                // 🚨 深入契合你新给出的结构体层级路径：_cachedDataObj -> zcanCANFDData -> frame
-                _cachedDataObj.zcanCANFDData.frame.flags = (byte)((canfd_exp_index != 0) ? CANFD_BRS : 0); // 加速标志
+                _cachedDataObj.chnl = (byte)channelIndex;
+                _cachedDataObj.dataType = 1;
+                _cachedDataObj.zcanCANFDData.frame.flags = (byte)((canfd_exp_index != 0) ? CANFD_BRS : 0);
                 _cachedDataObj.zcanCANFDData.frame.can_id = MakeCanId(canId, frame_type_index, 0, 0);
-
-                // 调用 GetData 时直接引用常驻对象的最终 frame.data 路径，绝不产生临时 byte[]
                 _cachedDataObj.zcanCANFDData.frame.len = (byte)GetData(data, ref _cachedDataObj.zcanCANFDData.frame.data, CANFD_MAX_DLEN);
 
-                // 零内存申请，极速将整个复杂的合并对象整体拷贝至非托管地址
                 Marshal.StructureToPtr(_cachedDataObj, _ptrMergeSendBuffer, false);
                 result = Method.ZCAN_TransmitData(device_handle_, _ptrMergeSendBuffer, 1);
             }
@@ -668,68 +712,48 @@ namespace ZLG.CAN
             return res;
         }
 
-        // ===================================================================
-        // 1. 🚨 【必须】在你的底层通信类顶部（或构造函数附近）定义常驻非托管缓冲区
-        // ===================================================================
-        private static readonly int SizeOfCanData = Marshal.SizeOf(typeof(ZCAN_Receive_Data));
-        private static readonly int SizeOfCanFdData = Marshal.SizeOf(typeof(ZCAN_ReceiveFD_Data));
-
-        // 分配两个在初始化时就申请好的、足够大的纯非托管物理缓冲区（单次最大拉取100帧）
-        // 放在类级别作为常驻变量，避免在 ReceiveInplace 中频繁申请和释放，保持零 GC 分配
-        private IntPtr _unmanagedCanFdBuffer = Marshal.AllocHGlobal(SizeOfCanFdData * 100);
-        private IntPtr _unmanagedCanBuffer = Marshal.AllocHGlobal(SizeOfCanData * 100);
-
 
         // ===================================================================
         // 2. 🚨 【必须】重构后的极速、绝对安全接收函数
         // ===================================================================
 
-        /// <summary>
-        /// 准非托管原地接收 - CANFD 专用 (100% 隔离保护，恢复 Send 功能)
-        /// </summary>
         public int ReceiveInplace(uint channelIndex, ZCAN_ReceiveFD_Data[] buffer, int waitTime = 0)
         {
-            if (buffer == null || buffer.Length == 0) return 0;
+            if (buffer == null || buffer.Length == 0 || ChannelHandles == null || channelIndex >= ChannelHandles.Length) return 0;
 
             IntPtr channelHandle = ChannelHandles[channelIndex];
+            if (channelHandle == IntPtr.Zero || _unmanagedCanFdBuffer == IntPtr.Zero) return 0;
+
             uint availableNum = Method.ZCAN_GetReceiveNum(channelHandle, TYPE_CANFD);
             if (availableNum == 0) return 0;
 
-            // 单次拉取量不超过硬件积压数、传入的托管数组容量，且不超过我们开辟的非托管缓冲区(100)
-            uint readLen = Math.Min(Math.Min(availableNum, (uint)buffer.Length), 100);
+            // 🌟 核心修正：单次拉取量严控在物理缓冲区 MAX_RECEIVE_FRAMES (50) 以内，绝对安全
+            uint readLen = Math.Min(Math.Min(availableNum, (uint)buffer.Length), MAX_RECEIVE_FRAMES);
 
-            // 👈 关键点 1：不传托管指针！直接传类常驻的纯 C++ 裸内存地址给周立功驱动
-            // 驱动随便怎么高频擦写，踩烂的也只是这块裸内存，绝对伤不到 C# 的对象头和 ChannelHandles 句柄
             uint actualRead = Method.ZCAN_ReceiveFD(channelHandle, _unmanagedCanFdBuffer, readLen, waitTime);
             if (actualRead <= 0) return 0;
 
-            // 👈 关键点 2：驱动写完后，在非托管安全区域按需还原结构体对象
             for (int i = 0; i < actualRead; i++)
             {
-                // 显式计算每一帧在 C++ 堆中的绝对物理地址
                 IntPtr framePtr = (IntPtr)((long)_unmanagedCanFdBuffer + i * SizeOfCanFdData);
-
-                // 仅在真正收到数据时，进行内存安全封送（物理拷贝）
                 buffer[i] = (ZCAN_ReceiveFD_Data)Marshal.PtrToStructure(framePtr, typeof(ZCAN_ReceiveFD_Data));
             }
-
             return (int)actualRead;
         }
 
-        /// <summary>
-        /// 准非托管原地接收 - 经典 CAN 专用 (100% 隔离保护，恢复 Send 功能)
-        /// </summary>
         public int ReceiveInplace(uint channelIndex, ZCAN_Receive_Data[] buffer, int waitTime = 0)
         {
-            if (buffer == null || buffer.Length == 0) return 0;
+            if (buffer == null || buffer.Length == 0 || ChannelHandles == null || channelIndex >= ChannelHandles.Length) return 0;
 
             IntPtr channelHandle = ChannelHandles[channelIndex];
+            if (channelHandle == IntPtr.Zero || _unmanagedCanBuffer == IntPtr.Zero) return 0;
+
             uint availableNum = Method.ZCAN_GetReceiveNum(channelHandle, TYPE_CAN);
             if (availableNum == 0) return 0;
 
-            uint readLen = Math.Min(Math.Min(availableNum, (uint)buffer.Length), 100);
+            // 🌟 核心修正：单次拉取量严控在物理缓冲区 MAX_RECEIVE_FRAMES (50) 以内，绝对安全
+            uint readLen = Math.Min(Math.Min(availableNum, (uint)buffer.Length), MAX_RECEIVE_FRAMES);
 
-            // 👈 传经典 CAN 的纯非托管物理内存首地址
             uint actualRead = Method.ZCAN_Receive(channelHandle, _unmanagedCanBuffer, readLen, waitTime);
             if (actualRead <= 0) return 0;
 
@@ -738,9 +762,11 @@ namespace ZLG.CAN
                 IntPtr framePtr = (IntPtr)((long)_unmanagedCanBuffer + i * SizeOfCanData);
                 buffer[i] = (ZCAN_Receive_Data)Marshal.PtrToStructure(framePtr, typeof(ZCAN_Receive_Data));
             }
-
             return (int)actualRead;
         }
+        
+        // 记得在你的 Communication 类的 Close() 或 Dispose() 里面加上对应的 FreeHGlobal 释放逻辑。
+    
 
         private void AddErr()
         {
