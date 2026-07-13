@@ -20,58 +20,73 @@ namespace ZLG.CAN
         private ZLGCANPara para = new ZLGCANPara();
         public bool Open()
         {
-            ZLGConfig config = new ZLGConfig(para.deviceInfoIndex, 0, para.kBaudrates[0], para.frameType[0]);
-            zlgOperation.SetConfig(config);
-            zlgOperation.Open(para.deviceIndex);
-            //LogInfo($"设备索引:{para.deviceIndex} 打开设备");
-            if (!zlgOperation.IsDeviceOpen)
+            // 1. 先尝试执行正常的初始化流程
+            if (TryInitializeHardware())
             {
-                Error = zlgOperation.ErrorMessage;
-                IsOpen &= false;
-                return IsOpen;
-            }
-            zlgOperation.InitCAN();
-            //LogInfo($"设备索引:{para.deviceIndex} 通道索引:0 初始化CAN");
-            if (!zlgOperation.IsInitCAN)
-            {
-                Error = zlgOperation.ErrorMessage;
-                IsOpen &= false;
-                return IsOpen;
-            }
-            zlgOperation.StartCAN();
-            //LogInfo($"设备索引:{para.deviceIndex} 通道索引:0 启动CAN");
-            if (!zlgOperation.IsStartCAN)
-            {
-                Error = zlgOperation.ErrorMessage;
-                IsOpen &= false;
-                return IsOpen;
+                return IsOpen = true;
             }
 
-            config = new ZLGConfig(para.deviceInfoIndex, 1, para.kBaudrates[1], para.frameType[1]);
-            zlgOperation.SetConfig(config);
-            if (!zlgOperation.IsDeviceOpen)
+            // 🌟 2. 如果失败，说明底层由于频繁开闭或Bus-Off彻底锁死，触发【设备级硬件硬复位】
+            LogInfo?.Invoke("⚠️ 检测到CAN通道锁死或初始化失败，正在触发物理层硬复位重试...");
+
+            // 强制关闭设备释放所有底层句柄（哪怕底层已经坏掉）
+            zlgOperation.Close();
+            Thread.Sleep(100); // 留出物理放电/驱动释放时间
+
+            // 🌟 3. 重新建立全新的设备与通道生命周期
+            if (TryInitializeHardware())
             {
-                Error = zlgOperation.ErrorMessage;
-                IsOpen &= false;
-                return IsOpen;
+                LogInfo?.Invoke("🎉 硬件硬复位成功，CAN通道已恢复正常！");
+                return IsOpen = true;
             }
-            zlgOperation.InitCAN();
-            //LogInfo($"设备索引:{para.deviceIndex} 通道索引:1 初始化CAN");
-            if (!zlgOperation.IsInitCAN)
+
+            LogInfo?.Invoke("❌ 硬件硬复位后依然无法初始化，请检查USB连线、供电或终端电阻。");
+            return IsOpen = false;
+        }
+
+        /// <summary>
+        /// 提取出的核心初始化逻辑
+        /// </summary>
+        private bool TryInitializeHardware()
+        {
+            try
             {
-                Error = zlgOperation.ErrorMessage;
-                IsOpen &= false;
-                return IsOpen;
+                // ================== 通道 0 初始化 ==================
+                ZLGConfig config0 = new ZLGConfig(para.deviceInfoIndex, 0, para.kBaudrates[0], para.frameType[0]);
+                zlgOperation.SetConfig(config0);
+                zlgOperation.Open(para.deviceIndex);
+
+                if (!zlgOperation.IsDeviceOpen) return false;
+
+                // 此时如果能初始化，先调用Init
+                zlgOperation.InitCAN();
+                if (!zlgOperation.IsInitCAN)
+                {
+                    // 🌟 只有在 InitCAN 成功之后，或者明确有旧句柄时，ResetCAN 才有效
+                    // 如果这里失败了，说明句柄根本没初始化成功，调 ResetCAN(0) 也没用
+                    return false;
+                }
+
+                zlgOperation.StartCAN();
+                if (!zlgOperation.IsStartCAN) return false;
+
+                // ================== 通道 1 初始化 ==================
+                ZLGConfig config1 = new ZLGConfig(para.deviceInfoIndex, 1, para.kBaudrates[1], para.frameType[1]);
+                zlgOperation.SetConfig(config1);
+
+                zlgOperation.InitCAN();
+                if (!zlgOperation.IsInitCAN) return false;
+
+                zlgOperation.StartCAN();
+                if (!zlgOperation.IsStartCAN) return false;
+
+                return true;
             }
-            zlgOperation.StartCAN();
-            //LogInfo($"设备索引:{para.deviceIndex} 通道索引:1 启动CAN");
-            if (!zlgOperation.IsStartCAN)
+            catch (Exception ex)
             {
-                Error = zlgOperation.ErrorMessage;
-                IsOpen &= false;
-                return IsOpen;
+                LogInfo?.Invoke($"初始化期间发生异常: {ex.Message}");
+                return false;
             }
-            return IsOpen = true;
         }
 
         public bool Close()
@@ -86,7 +101,7 @@ namespace ZLG.CAN
 
         public bool Send(uint canId, uint channelIndex, string strData)
         {
-            zlgOperation.FrameType = canId > 0x7FF ? FrameType.Extended : FrameType.Standard;
+            zlgOperation.FrameType = canId >= 0x7FF ? FrameType.Extended : FrameType.Standard;
             bool isSuccess = zlgOperation.Send(canId, channelIndex, strData);
             if (isSuccess)
             {
@@ -112,7 +127,7 @@ namespace ZLG.CAN
 
         public bool Send(uint canId, uint channelIndex, byte[] data)
         {
-            zlgOperation.FrameType = canId > 0x7FF ? FrameType.Extended : FrameType.Standard;
+            zlgOperation.FrameType = canId >= 0x7FF ? FrameType.Extended : FrameType.Standard;
             bool isSuccess = zlgOperation.Send(canId, channelIndex, data);
             if (isSuccess)
             {

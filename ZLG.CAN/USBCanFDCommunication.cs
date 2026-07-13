@@ -114,7 +114,7 @@ namespace ZLG.CAN
 
         public bool Send(uint canId, uint channelIndex, string strData)
         {
-            zlgOperation.FrameType = canId > 0x7FF ? Models.FrameType.Extended : Models.FrameType.Standard;
+            zlgOperation.FrameType = canId >= 0x7FF ? Models.FrameType.Extended : Models.FrameType.Standard;
             zlgOperation.TransmissionMode = config[channelIndex].TransmissionMode;
             zlgOperation.CANFDAccelerate = para[channelIndex].CANFDAccelerate;
             zlgOperation.CanFDProtocolType = para[channelIndex].ProtocolType;
@@ -140,7 +140,7 @@ namespace ZLG.CAN
 
         public bool Send(uint canId, uint channelIndex, byte[] data)
         {
-            zlgOperation.FrameType = canId > 0x7FF ? Models.FrameType.Extended : Models.FrameType.Standard;
+            zlgOperation.FrameType = canId >= 0x7FF ? Models.FrameType.Extended : Models.FrameType.Standard;
             zlgOperation.TransmissionMode = config[channelIndex].TransmissionMode;
             zlgOperation.CANFDAccelerate = para[channelIndex].CANFDAccelerate;
             zlgOperation.CanFDProtocolType = para[channelIndex].ProtocolType;
