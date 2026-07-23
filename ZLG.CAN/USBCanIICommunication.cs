@@ -12,8 +12,7 @@ namespace ZLG.CAN
     public class USBCanIICommunication
     {
         ZLGOperation zlgOperation = new ZLGOperation();
-        public delegate void LoggerInfoFunc(string message);
-        public LoggerInfoFunc LogInfo;
+        public event Action<string> LogInfo;
         public bool IsOpen { get; set; }
         public ErrorMessage Error { get; set; } = new ErrorMessage();
         public ZLGCANPara CanPara { get { return para; } }
@@ -89,6 +88,12 @@ namespace ZLG.CAN
             }
         }
 
+        public void RaiseLog(string message)
+        {
+            // ?. 内部自动做 null 检查，且只在当前类内部允许 Invoke
+            LogInfo?.Invoke(message);
+        }
+
         public bool Close()
         {
             return zlgOperation.Close();
@@ -105,51 +110,39 @@ namespace ZLG.CAN
             bool isSuccess = zlgOperation.Send(canId, channelIndex, strData);
             if (isSuccess)
             {
-                Console.WriteLine($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}");
-                if (LogInfo != null)
-                {
-                    LogInfo($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}");
-                }      
+
+                LogInfo?.Invoke($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}");
+                
             }
             else
             {
-                Console.WriteLine($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}失败");
                 Error = zlgOperation.ErrorMessage;
-                if(LogInfo != null)
-                {
-                    LogInfo($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}失败");
-                    LogInfo($"错误码:{Error.ErrorCode}");
-                }
-
+                LogInfo?.Invoke($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}失败");
+                LogInfo?.Invoke($"错误码:{Error.ErrorCode}");
             }
             return isSuccess;
         }
 
-        public bool Send(uint canId, uint channelIndex, byte[] data)
+        public bool Send(uint canId, uint channelIndex, byte[] data, bool enableLog = true)
         {
             zlgOperation.FrameType = canId >= 0x7FF ? FrameType.Extended : FrameType.Standard;
             bool isSuccess = zlgOperation.Send(canId, channelIndex, data);
             if (isSuccess)
             {
-                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} " +
-                    $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
-                if (LogInfo != null)
+                if (enableLog)
                 {
-                    LogInfo(
-                    $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
+                    LogInfo?.Invoke($"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
                 }
-                
             }
             else
             {
-                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
-                    + $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}失败");
-                if(LogInfo != null)
+                if (enableLog)
                 {
-                    LogInfo(
-                    $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}失败");
-                    LogInfo($"错误码:{Error.ErrorCode}");
+                    LogInfo?.Invoke(
+                $"{para.deviceInfoIndex} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}失败");
+                    LogInfo?.Invoke($"错误码:{Error.ErrorCode}");
                 }
+
             }
             return isSuccess;
         }
@@ -204,24 +197,18 @@ namespace ZLG.CAN
                     if(query.Count() > 0)
                     {
                         ret = query.Last();
-                        if(LogInfo != null)
-                        {
-                            LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
-                            $"通道:{channelIndex}," +
-                            $"数据:{BitConverter.ToString(ret.frame.data)}");
-                        }
+                        LogInfo?.Invoke($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+$"通道:{channelIndex}," +
+$"数据:{BitConverter.ToString(ret.frame.data)}");
                         isSuccess = true;
                     }
                 }
             }
             if (!isSuccess)
             {
-                if (LogInfo != null)
-                {
-                    LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
-                    $"通道:{channelIndex}," +
-                    $"未接收到任何数据");
-                }
+                LogInfo?.Invoke($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+$"通道:{channelIndex}," +
+$"未接收到任何数据");
             }
             return (isSuccess, ret);
         }
@@ -247,12 +234,11 @@ namespace ZLG.CAN
                         rets = query.ToArray();
                         foreach (var ret in rets)
                         {
-                            if (LogInfo != null)
-                            {
-                                LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+
+                                LogInfo?.Invoke($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
                                 $"通道:{channelIndex}," +
                                 $"数据:{BitConverter.ToString(ret.frame.data)}");
-                            }
+                            
                         }
                         isSuccess = true;
                     }
@@ -260,12 +246,11 @@ namespace ZLG.CAN
             }
             if (!isSuccess)
             {
-                if (LogInfo != null)
-                {
-                    LogInfo($"接收CanID: 0x{GetId(receiveId).ToString("X")}," +
+
+                    LogInfo?.Invoke($"接收CanID: 0x{GetId(receiveId).ToString("X")}," +
                     $"通道:{channelIndex}," +
                     $"未接收到任何数据");
-                }
+                
             }
             return (isSuccess, rets);
         }
@@ -287,24 +272,22 @@ namespace ZLG.CAN
                         if (query.Count() > 0)
                         {
                             ret = query.Last();
-                            if (LogInfo != null)
-                            {
-                                LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+
+                                LogInfo?.Invoke($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
                                 $"通道:{channelIndex}," +
                                 $"数据:{BitConverter.ToString(ret.frame.data)}");
-                            }
+                            
                             isSuccess = true;
                         }
                     }
                 }
                 if (!isSuccess)
                 {
-                    if (LogInfo != null)
-                    {
-                        LogInfo($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
+
+                        LogInfo?.Invoke($"接收CanID: 0x{GetId(ret.frame.can_id).ToString("X")}," +
                         $"通道:{channelIndex}," +
                         $"未接收到任何数据");
-                    }
+                    
                 }
                 rets.Add((isSuccess,ret));
             }

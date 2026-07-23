@@ -535,6 +535,12 @@ namespace ZLG.CAN
             return Method.ZCAN_ClearBuffer(channelHandle);
         }
 
+        public uint ResetCAN(uint channelIndex)
+        {
+            var channelHandle = ChannelHandles[channelIndex];
+            return Method.ZCAN_ResetCAN(channelHandle);
+        }
+
         // ===================================================================
         // 1. 结构体大小常驻常量
         // ===================================================================

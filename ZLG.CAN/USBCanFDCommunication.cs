@@ -12,8 +12,7 @@ namespace ZLG.CAN
     public class USBCanFDCommunication
     {
         private ZLGOperation zlgOperation = new ZLGOperation();
-        public delegate void LoggerInfoFunc(string message);
-        public LoggerInfoFunc LogInfo;
+        public event Action<string> LogInfo;
         public uint DeviceIndex { get; set; } = 0;
         public bool IsOpen { get; set; }
         public ErrorMessage Error { get; set; } = new ErrorMessage();
@@ -28,6 +27,12 @@ namespace ZLG.CAN
         public bool[] TREnable { get; set; } = [true, true];
         private CanFDPara[] para;
         private ZLGConfig[] config;
+
+        public void RaiseLog(string message)
+        {
+            // ?. 内部自动做 null 检查，且只在当前类内部允许 Invoke
+            LogInfo?.Invoke(message);
+        }
 
         public bool Open()
         {
@@ -121,12 +126,10 @@ namespace ZLG.CAN
             bool isSuccess = zlgOperation.Send(canId, channelIndex, strData);
             if (isSuccess)
             {
-                Console.WriteLine($"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}");
                 LogInfo?.Invoke($"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}");        
             }
             else
             {
-                Console.WriteLine($"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{strData}失败");
                 Error = zlgOperation.ErrorMessage;
                 if (LogInfo != null)
                 {
@@ -138,7 +141,7 @@ namespace ZLG.CAN
             return isSuccess;
         }
 
-        public bool Send(uint canId, uint channelIndex, byte[] data)
+        public bool Send(uint canId, uint channelIndex, byte[] data,bool enableLog = true)
         {
             zlgOperation.FrameType = canId >= 0x7FF ? Models.FrameType.Extended : Models.FrameType.Standard;
             zlgOperation.TransmissionMode = config[channelIndex].TransmissionMode;
@@ -149,14 +152,20 @@ namespace ZLG.CAN
             {
                 //Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} " +
                 //    $"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
-                LogInfo?.Invoke($"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
+                if (enableLog)
+                {
+                    LogInfo?.Invoke($"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}");
+                }
             }
             else
             {
                 //Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")} "
                 //    + $"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送失败");
-                LogInfo?.Invoke($"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}失败");
-                LogInfo?.Invoke($"错误码:{Error.ErrorCode}");
+                if (enableLog)
+                {
+                    LogInfo?.Invoke($"{DeviceInfoIndex[channelIndex]} CanId:0x{canId.ToString("X")},通道:{channelIndex} 发送:{BitConverter.ToString(data)}失败");
+                    LogInfo?.Invoke($"错误码:{Error.ErrorCode}");
+                }
             }
             return isSuccess;
         }
